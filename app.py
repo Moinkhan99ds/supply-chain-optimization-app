@@ -6,7 +6,7 @@ import plotly.express as px
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
 
-# 👇 YAHI PASTE KARO
+
 st.markdown("""
 <style>
 .block-container {
@@ -24,7 +24,7 @@ label {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- CLEAN CSS (NO CUT TEXT) ----------
+
 st.markdown("""
 <style>
 h1 {font-size: 26px !important;}
@@ -35,13 +35,13 @@ label {font-size: 14px !important; font-weight: 600;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- LOAD MODEL ----------
+
 model = joblib.load("demand_model.pkl")
 
-# ---------- LAYOUT ----------
+
 left, right = st.columns([1, 2])
 
-# ================= LEFT PANEL =================
+
 with left:
     st.markdown("### ⚙️ Inputs")
 
@@ -63,14 +63,14 @@ with left:
 
     run = st.button("Run Analysis")
 
-# ================= RIGHT PANEL =================
+
 with right:
 
     st.markdown("## 📦 Supply Chain Optimization Dashboard")
 
     if run:
 
-        # ---------- BASE DATA ----------
+        
         df = pd.DataFrame({
             'product_id':[product_id],
             'day_of_week':[day_of_week],
@@ -94,11 +94,11 @@ with right:
 
         df = df[features]
 
-        # ---------- DEMAND ----------
+        
         demand = max(0, model.predict(df)[0])
         reorder_point = demand * lead_time
 
-        # ---------- SCENARIO ANALYSIS (SAFE) ----------
+        
         prices = [int(price*0.8), price, int(price*1.2)]
         demands = []
         profits = []
@@ -107,7 +107,7 @@ with right:
             df["price"] = p
             d = max(0, model.predict(df)[0])
 
-            # mild realistic adjustment (safe)
+            
             ratio = p / competitor_price
             d = d * (1/ratio)
 
@@ -116,19 +116,19 @@ with right:
             demands.append(round(d,2))
             profits.append(round(profit,2))
 
-        # ---------- METRICS ----------
+        
         m1, m2, m3 = st.columns(3)
         m1.metric("📊 Demand", round(demand,2))
         m2.metric("💰 Base Price", price)
         m3.metric("📈 Est. Profit", profits[1])
 
-        # ---------- ALERT ----------
+        
         if current_stock < reorder_point:
             st.error(f"⚠️ Restock Required (Reorder: {round(reorder_point,2)})")
         else:
             st.success(f"✅ Stock OK (Reorder: {round(reorder_point,2)})")
 
-        # ---------- BAR GRAPH (SAFE) ----------
+        
         chart_df = pd.DataFrame({
             "Price": prices,
             "Profit": profits
@@ -140,7 +140,7 @@ with right:
         fig.update_layout(height=350)
         st.plotly_chart(fig, use_container_width=True)
 
-        # ---------- TABLE (ANALYTICAL LOOK) ----------
+        
         st.markdown("### 📊 Scenario Analysis")
 
         table_df = pd.DataFrame({
@@ -148,13 +148,13 @@ with right:
             "Predicted Demand": demands,
             "Estimated Profit": profits
         })
-        # ---------- INSIGHT ----------
+        
         best_idx = profits.index(max(profits))
         best_price = prices[best_idx]
 
         st.info(f"📌 Recommended Price: ₹{best_price} for maximum profit.")
 
-        # ---------- SAFE NOTE ----------
+        
         st.caption("⚠️ Results based on simulated scenarios for decision support.")
 
         st.dataframe(table_df, use_container_width=True)
