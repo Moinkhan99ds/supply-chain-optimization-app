@@ -2,142 +2,139 @@ import streamlit as st
 import pandas as pd
 import joblib
 import plotly.graph_objects as go
+import plotly.express as px
 
-# Load model
+st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
+
+# ---------- STYLE ----------
+st.markdown("""
+<style>
+.block-container {padding-top: 1rem; padding-bottom: 0rem;}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------- LOAD MODEL ----------
 model = joblib.load("demand_model.pkl")
 
-st.set_page_config(page_title="Supply Chain App", layout="wide")
+# ---------- LAYOUT ----------
+left, right = st.columns([1, 2])
 
-st.title("📦 Supply Chain Optimization Dashboard")
+# ================= LEFT PANEL =================
+with left:
+    st.subheader("⚙️ Inputs")
 
-st.header("Enter Product Details")
+    product_id = st.number_input("Product ID", min_value=1, value=1)
+    price = st.number_input("Price", value=200)
+    discount = st.slider("Discount", 0.0, 0.5, 0.1)
+    competitor_price = st.number_input("Competitor Price", value=220)
 
-# Inputs
-product_id = st.number_input("Product ID", min_value=1, value=1)
+    promotion = st.selectbox("Promotion", [0, 1])
+    holiday = st.selectbox("Holiday", [0, 1])
 
-price = st.number_input("Price", value=200)
-discount = st.slider("Discount", 0.0, 0.5, 0.1)
+    day_of_week = st.slider("Day (0=Mon)", 0, 6, 3)
+    month = st.slider("Month", 1, 12, 6)
+    weekend = st.selectbox("Weekend", [0, 1])
 
-competitor_price = st.number_input("Competitor Price", value=220)
+    cost_price = st.number_input("Cost Price", value=120)
+    current_stock = st.number_input("Stock", value=100)
+    lead_time = st.number_input("Lead Time", value=3)
 
-promotion = st.selectbox("Promotion", [0, 1])
-holiday = st.selectbox("Holiday", [0, 1])
+    run = st.button("Run Analysis")
 
-day_of_week = st.slider("Day of Week (0=Mon,6=Sun)", 0, 6, 3)
-month = st.slider("Month", 1, 12, 6)
-weekend = st.selectbox("Weekend", [0, 1])
+# ================= RIGHT PANEL =================
+with right:
 
-cost_price = st.number_input("Cost Price", value=120)
-current_stock = st.number_input("Current Stock", value=100)
-lead_time = st.number_input("Lead Time (days)", value=3)
+    st.title("📦 Supply Chain Dashboard")
 
-# Button
-if st.button("Run Analysis"):
+    if run:
 
-    # Create DataFrame
-    input_df = pd.DataFrame({
-        'product_id': [product_id],
-        'day_of_week': [day_of_week],
-        'month': [month],
-        'weekend': [weekend],
-        'price': [price],
-        'discount': [discount],
-        'cost_price': [cost_price],
-        'competitor_price': [competitor_price],
-        'promotion': [promotion],
-        'holiday': [holiday],
-        'current_stock': [current_stock],
-        'lead_time': [lead_time]
-    })
+        # ---------- DATA ----------
+        df = pd.DataFrame({
+            'product_id':[product_id],
+            'day_of_week':[day_of_week],
+            'month':[month],
+            'weekend':[weekend],
+            'price':[price],
+            'discount':[discount],
+            'cost_price':[cost_price],
+            'competitor_price':[competitor_price],
+            'promotion':[promotion],
+            'holiday':[holiday],
+            'current_stock':[current_stock],
+            'lead_time':[lead_time]
+        })
 
-    features = [
-        'product_id', 'day_of_week', 'month', 'weekend',
-        'price', 'discount', 'cost_price', 'competitor_price',
-        'promotion', 'holiday', 'current_stock', 'lead_time'
-    ]
+        features = [
+            'product_id','day_of_week','month','weekend',
+            'price','discount','cost_price','competitor_price',
+            'promotion','holiday','current_stock','lead_time'
+        ]
 
-    input_df = input_df[features]
+        df = df[features]
 
-    # =============================
-    # 🔥 1. Demand Prediction
-    # =============================
-    demand = model.predict(input_df)[0]
+        # ---------- PREDICTION ----------
+        demand = model.predict(df)[0]
+        reorder_point = demand * lead_time
 
-    st.subheader("📊 Demand Forecast")
+        # ---------- PRICE OPT ----------
+        price_range = list(range(100, 500, 10))
+        profits = []
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Predicted Demand", round(demand, 2))
-    col2.metric("Current Stock", current_stock)
-    col3.metric("Lead Time", lead_time)
+        for p in price_range:
+            df["price"] = p
+            d = model.predict(df)[0]
+            profit = (p - cost_price) * d
+            profits.append(profit)
 
-    # =============================
-    # 🔥 2. Inventory Decision
-    # =============================
-    reorder_point = demand * lead_time
+        best_price = price_range[profits.index(max(profits))]
+        max_profit = max(profits)
 
-    st.subheader("📦 Inventory Decision")
+        # ---------- METRICS ----------
+        m1, m2, m3 = st.columns(3)
+        m1.metric("📊 Demand", round(demand,2))
+        m2.metric("💰 Best Price", best_price)
+        m3.metric("📈 Profit", round(max_profit,2))
 
-    if current_stock < reorder_point:
-        st.error(f"⚠️ Restock Required (Reorder Point: {round(reorder_point,2)})")
-    else:
-        st.success(f"✅ Stock is Enough (Reorder Point: {round(reorder_point,2)})")
-
-    # =============================
-    # 🔥 3. Price Optimization
-    # =============================
-    max_profit = float('-inf')
-    best_price = 0
-    cost = cost_price
-
-    price_range = []
-    profit_list = []
-
-    for p in range(100, 500, 10):
-        input_df["price"] = p
-        temp_demand = model.predict(input_df)[0]
-        profit = (p - cost) * temp_demand
-
-        price_range.append(p)
-        profit_list.append(profit)
-
-        if profit > max_profit:
-            max_profit = profit
-            best_price = p
-
-    st.subheader("💰 Price Optimization")
-
-    col1, col2 = st.columns(2)
-    col1.metric("Best Price", best_price)
-    col2.metric("Max Profit", round(max_profit, 2))
-
-    # =============================
-    # 🔥 4. GRAPH (MAIN UPGRADE)
-    # =============================
-    st.subheader("📈 Profit vs Price Graph")
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=price_range,
-        y=profit_list,
-        mode='lines+markers',
-        name='Profit',
-        line=dict(color='green')
-    ))
-
-    fig.update_layout(
-        template="plotly_dark",
-        xaxis_title="Price",
-        yaxis_title="Profit"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # =============================
-    # 🔥 5. TREND
-    # =============================
-    if len(profit_list) > 1:
-        if profit_list[-1] > profit_list[-2]:
-            st.success("📈 Profit Increasing Trend")
+        # ---------- ALERT ----------
+        if current_stock < reorder_point:
+            st.error(f"⚠️ Restock Required (Reorder: {round(reorder_point,2)})")
         else:
-            st.error("📉 Profit Decreasing Trend")
+            st.success(f"✅ Stock OK (Reorder: {round(reorder_point,2)})")
+
+        # ---------- GRAPHS ----------
+        g1, g2 = st.columns(2)
+
+        # Demand graph
+        demand_series = [demand * (0.8 + i*0.05) for i in range(10)]
+        fig1 = go.Figure()
+        fig1.add_trace(go.Scatter(
+            y=demand_series,
+            mode='lines+markers',
+            name="Demand",
+            line=dict(color='cyan')
+        ))
+        fig1.update_layout(title="📈 Demand Trend", template="plotly_dark")
+        g1.plotly_chart(fig1, use_container_width=True)
+
+        # Profit graph
+        fig2 = px.line(x=price_range, y=profits, title="💰 Profit vs Price")
+        fig2.update_layout(template="plotly_dark")
+        g2.plotly_chart(fig2, use_container_width=True)
+
+        # ---------- DISCOUNT VS DEMAND ----------
+        discounts = [i/10 for i in range(0,6)]
+        sales = []
+
+        for d in discounts:
+            df["discount"] = d
+            s = model.predict(df)[0]
+            sales.append(s)
+        fig3 = px.line(x=discounts, y=sales, title="🎯 Discount vs Demand")
+        fig3.update_layout(template="plotly_dark")
+        st.plotly_chart(fig3, use_container_width=True)
+
+        # ---------- INSIGHT ----------
+        st.info(f"📌 Best price ₹{best_price} gives max profit ₹{round(max_profit,2)}. Consider increasing stock.")
+
+
+
