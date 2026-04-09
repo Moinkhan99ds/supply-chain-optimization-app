@@ -6,10 +6,19 @@ import plotly.express as px
 
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
 
-# ---------- STYLE ----------
+# ---------- CSS FIX (NO TEXT CUT) ----------
 st.markdown("""
 <style>
-.block-container {padding-top: 1rem; padding-bottom: 0rem;}
+label {
+    font-size: 14px !important;
+    font-weight: 600;
+}
+div[data-baseweb="input"] {
+    width: 100% !important;
+}
+.stNumberInput, .stSlider, .stSelectbox {
+    overflow: visible !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -73,16 +82,21 @@ with right:
         df = df[features]
 
         # ---------- PREDICTION ----------
-        demand = model.predict(df)[0]
+        demand = max(0, model.predict(df)[0])   # negative avoid
         reorder_point = demand * lead_time
 
-        # ---------- PRICE OPT ----------
+        # ---------- PRICE OPT (FIXED LOGIC) ----------
         price_range = list(range(100, 500, 10))
         profits = []
 
         for p in price_range:
             df["price"] = p
             d = model.predict(df)[0]
+
+            # 🔥 REALISTIC DEMAND ADJUSTMENT
+            price_factor = max(0.3, 1 - (p / 800))  
+            d = max(0, d * price_factor)
+
             profit = (p - cost_price) * d
             profits.append(profit)
 
@@ -115,7 +129,6 @@ with right:
         ))
         fig1.update_layout(title="📈 Demand Trend", template="plotly_dark")
         g1.plotly_chart(fig1, use_container_width=True)
-
         # Profit graph
         fig2 = px.line(x=price_range, y=profits, title="💰 Profit vs Price")
         fig2.update_layout(template="plotly_dark")
@@ -128,13 +141,12 @@ with right:
         for d in discounts:
             df["discount"] = d
             s = model.predict(df)[0]
+            s = max(0, s)
             sales.append(s)
+
         fig3 = px.line(x=discounts, y=sales, title="🎯 Discount vs Demand")
         fig3.update_layout(template="plotly_dark")
         st.plotly_chart(fig3, use_container_width=True)
 
         # ---------- INSIGHT ----------
-        st.info(f"📌 Best price ₹{best_price} gives max profit ₹{round(max_profit,2)}. Consider increasing stock.")
-
-
-
+        st.info(f"📌 Best price ₹{best_price} → Max profit ₹{round(max_profit,2)}. Consider increasing stock.")
