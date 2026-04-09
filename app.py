@@ -4,6 +4,25 @@ import joblib
 import plotly.express as px
 
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
+st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
+
+# 👇 YAHI PASTE KARO
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 3rem !important;
+}
+
+h1 {font-size: 26px !important;}
+h2 {font-size: 22px !important;}
+h3 {font-size: 18px !important;}
+
+label {
+    font-size: 14px !important;
+    font-weight: 600;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------- CLEAN CSS (NO CUT TEXT) ----------
 st.markdown("""
