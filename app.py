@@ -1,24 +1,18 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import plotly.graph_objects as go
 import plotly.express as px
 
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
 
-# ---------- CSS FIX (NO TEXT CUT) ----------
+# ---------- CLEAN CSS (NO CUT TEXT) ----------
 st.markdown("""
 <style>
-label {
-    font-size: 14px !important;
-    font-weight: 600;
-}
-div[data-baseweb="input"] {
-    width: 100% !important;
-}
-.stNumberInput, .stSlider, .stSelectbox {
-    overflow: visible !important;
-}
+h1 {font-size: 26px !important;}
+h2 {font-size: 22px !important;}
+h3 {font-size: 18px !important;}
+label {font-size: 14px !important; font-weight: 600;}
+.block-container {padding-top: 1rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -30,10 +24,10 @@ left, right = st.columns([1, 2])
 
 # ================= LEFT PANEL =================
 with left:
-    st.subheader("⚙️ Inputs")
+    st.markdown("### ⚙️ Inputs")
 
     product_id = st.number_input("Product ID", min_value=1, value=1)
-    price = st.number_input("Price", value=200)
+    price = st.number_input("Base Price", value=200)
     discount = st.slider("Discount", 0.0, 0.5, 0.1)
     competitor_price = st.number_input("Competitor Price", value=220)
 
@@ -53,11 +47,11 @@ with left:
 # ================= RIGHT PANEL =================
 with right:
 
-    st.title("📦 Supply Chain Dashboard")
+    st.markdown("## 📦 Supply Chain Optimization Dashboard")
 
     if run:
 
-        # ---------- DATA ----------
+        # ---------- BASE DATA ----------
         df = pd.DataFrame({
             'product_id':[product_id],
             'day_of_week':[day_of_week],
@@ -81,33 +75,33 @@ with right:
 
         df = df[features]
 
-        # ---------- PREDICTION ----------
-        demand = max(0, model.predict(df)[0])   # negative avoid
+        # ---------- DEMAND ----------
+        demand = max(0, model.predict(df)[0])
         reorder_point = demand * lead_time
 
-        # ---------- PRICE OPT (FIXED LOGIC) ----------
-        price_range = list(range(100, 500, 10))
+        # ---------- SCENARIO ANALYSIS (SAFE) ----------
+        prices = [int(price*0.8), price, int(price*1.2)]
+        demands = []
         profits = []
 
-        for p in price_range:
+        for p in prices:
             df["price"] = p
-            d = model.predict(df)[0]
+            d = max(0, model.predict(df)[0])
 
-            # 🔥 REALISTIC DEMAND ADJUSTMENT
-            price_factor = max(0.3, 1 - (p / 800))  
-            d = max(0, d * price_factor)
+            # mild realistic adjustment (safe)
+            ratio = p / competitor_price
+            d = d * (1/ratio)
 
             profit = (p - cost_price) * d
-            profits.append(profit)
 
-        best_price = price_range[profits.index(max(profits))]
-        max_profit = max(profits)
+            demands.append(round(d,2))
+            profits.append(round(profit,2))
 
         # ---------- METRICS ----------
         m1, m2, m3 = st.columns(3)
         m1.metric("📊 Demand", round(demand,2))
-        m2.metric("💰 Best Price", best_price)
-        m3.metric("📈 Profit", round(max_profit,2))
+        m2.metric("💰 Base Price", price)
+        m3.metric("📈 Est. Profit", profits[1])
 
         # ---------- ALERT ----------
         if current_stock < reorder_point:
@@ -115,38 +109,33 @@ with right:
         else:
             st.success(f"✅ Stock OK (Reorder: {round(reorder_point,2)})")
 
-        # ---------- GRAPHS ----------
-        g1, g2 = st.columns(2)
+        # ---------- BAR GRAPH (SAFE) ----------
+        chart_df = pd.DataFrame({
+            "Price": prices,
+            "Profit": profits
+        })
 
-        # Demand graph
-        demand_series = [demand * (0.8 + i*0.05) for i in range(10)]
-        fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(
-            y=demand_series,
-            mode='lines+markers',
-            name="Demand",
-            line=dict(color='cyan')
-        ))
-        fig1.update_layout(title="📈 Demand Trend", template="plotly_dark")
-        g1.plotly_chart(fig1, use_container_width=True)
-        # Profit graph
-        fig2 = px.line(x=price_range, y=profits, title="💰 Profit vs Price")
-        fig2.update_layout(template="plotly_dark")
-        g2.plotly_chart(fig2, use_container_width=True)
+        fig = px.bar(chart_df, x="Price", y="Profit",
+                     title="💰 Profit Comparison Across Price Scenarios")
 
-        # ---------- DISCOUNT VS DEMAND ----------
-        discounts = [i/10 for i in range(0,6)]
-        sales = []
+        fig.update_layout(height=350)
+        st.plotly_chart(fig, use_container_width=True)
 
-        for d in discounts:
-            df["discount"] = d
-            s = model.predict(df)[0]
-            s = max(0, s)
-            sales.append(s)
+        # ---------- TABLE (ANALYTICAL LOOK) ----------
+        st.markdown("### 📊 Scenario Analysis")
 
-        fig3 = px.line(x=discounts, y=sales, title="🎯 Discount vs Demand")
-        fig3.update_layout(template="plotly_dark")
-        st.plotly_chart(fig3, use_container_width=True)
-
+        table_df = pd.DataFrame({
+            "Price": prices,
+            "Predicted Demand": demands,
+            "Estimated Profit": profits
+        })
         # ---------- INSIGHT ----------
-        st.info(f"📌 Best price ₹{best_price} → Max profit ₹{round(max_profit,2)}. Consider increasing stock.")
+        best_idx = profits.index(max(profits))
+        best_price = prices[best_idx]
+
+        st.info(f"📌 Recommended Price: ₹{best_price} for maximum profit.")
+
+        # ---------- SAFE NOTE ----------
+        st.caption("⚠️ Results based on simulated scenarios for decision support.")
+
+        st.dataframe(table_df, use_container_width=True)
