@@ -28,6 +28,12 @@ This app uses machine learning + business logic to:
 
 ---
 
+## App Screenshot
+
+![App Screenshot](screenshot.jpg)
+
+---
+
 ## Features
 
 -  Demand Forecasting (ML model)
