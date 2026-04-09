@@ -24,7 +24,7 @@ This app uses machine learning + business logic to:
 
 ## Demo
 
-![Demo](demo.gif)
+![Demo](demo.supply.gif)
 
 ---
 
